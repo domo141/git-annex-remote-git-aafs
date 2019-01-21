@@ -1,0 +1,153 @@
+
+git-annex-remote-git-aafs: annex addressable files in git repositories
+======================================================================
+
+This is a git annex special remote which uses basic git pack protocols to
+store and retrieve files to and from any normal (remote) git repository.
+
+Each file is stored using separate git _ref_, named by the key value
+git annex provides.
+
+This ref refers to commit object, containing no parents, but a tree object,
+containing one blob -- and this blob is the contents of the file stored by
+git annex (using this special remote).
+
+This way each file can be accessed separately and any standard git
+repository should be able to work as a storage backend.
+
+
+LICENSE
+'''''''
+
+As of 2019, git-annex-remote-git-aafs.pl is licenced under GPLv3 (since
+git-annex, as of 2018, effectively contains this licence (it is gplv3+)).
+Since internet time the exact license text (as of 2018), can be fetched
+from
+
+    https://www.gnu.org/licenses/gpl.txt
+
+its size is 35149 bytes and its sha256 checksum (fetched 2019-01-21) is
+
+    3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986
+
+Other files include line: SPDX-License-Identifier: BSD-2-Clause
+
+
+HOWTO
+'''''
+
+You can examine and try test-it1.sh and test-it2.sh before going further.
+Both write material under ./tdir/. -- which can then be examined and
+deleted. test-it1.sh runs `git-annex testremote` and test-it2.sh tests
+how (relative) repo= parameters are handled.
+
+
+git-annex requires special remote command named as git-annex-remote-...
+(git-annex-remote-git-aafs in this case) and be available in users'
+$PATH.
+
+If you don't want to install this to your system paths (I did not), many
+systems add $HOME/bin/. to path for user convenience (mine did), so copy
+(or symlink, like I did) git-annex-remote-git-aafs.pl as
+$HOME/bin/git-annex-remote-git-aafs (shell restart may be needed...).
+
+Have an empty git repository available somewhere (well, it doesn't need to
+be empty, but it is clearer this way), reserved for storage of git annex
+stored content.
+
+Now visit  https://git-annex.branchable.com/walkthrough/
+
+to get idea how git-annex works; it helps to comprehend the following
+information.
+
+Helper tool ./init-git-aafs.sh can be used to do the first 3 steps below.
+It runs some checks before running git-annex commands -- things that I
+faced while testing...
+
+
+In a git repository where you want to use this remote, enter the following
+commands:
+
+  $ git config remote.origin.annex-ignore true
+
+    - the git repository (not the annex storage git repository)
+      remote.origin (origin is most often most relevant) may not have
+      git-annex-shell available/accessible -- if it did it were used
+      to store the files and this special remote would be obsolete.
+
+  $ git-annex init
+
+    - initialized local repo to work with git annex. note that if the
+      files .git/hooks/pre-commit and .git/hooks/post-receive already
+      exists in this repo, those are not updated to contain git annex
+      specific hooks -- which would be the following command calls:
+          git annex pre-commit .
+          git annex post-receive
+      respectively (init-git-aafs.sh will refuse to continue if these
+      exists -- but provides hint how to handle the situation...).
+
+  $ git-annex initremote git-aafs type=external externaltype=git-aafs \
+        encryption=none repo=url-to-the-empty-repo-made-available-above
+
+    - initializes this remote. git-annex-remote-git-aafs uses the repo=
+      parameter -- all other are required by git annex. the repo url
+      can just be full url to the remote, or "relative". the exact rules
+      how url can be resolved are to be documented -- in the meanwhile
+      look at the end of file test-it2.sh to get the idea.
+
+
+  Before `git-annex initremote` you could have run `git-annex add ...` and
+  `git commit ...` commands (documented walkthrough link above). If not,
+  do some of those now...
+
+  After doing git annex adds and git commits, run
+
+  $ git-annex copy "annexed-files" --to git-aafs
+
+  to get it copied to the remote. Now, to test that, execute
+
+  $ ls -l "annexed-files"
+  $ ls -lH "annexed-files"
+  $ git-annex drop "annexed-files"
+  $ ls -lH "annexed-files"
+  $ git-annex get "annexed-files"
+  $ ls -lH "annexed-files"
+
+  and see it/those going back and forth.
+
+  Note: If you were just testing, .git/annex/ cleanup might get complicated
+        -- then execute  find .git/annex | xargs -r chmod 755
+
+  If you are interested to have a peek to some of the internal workings
+  of this, try the following commands:
+
+  $ git annex info git-aafs
+
+  That lists some of the configuration, but not the value of `repo=`.
+  To see that, execute:
+
+  $ git cat-file blob git-annex:remote.log
+
+  (if repo=... in that output is path to local directory (see test-it2.sh)
+   you can entertain yourself by running `inotifywait -mr path/to/there`
+   on another terminal and then (re-)execute all these commands.)
+
+  $ git ls-remote "repourl-seen-above"
+
+  ... and you can see striking similarity in output compared to
+      `ls -l "annexed-file"` executed above...
+
+
+That's it!
+''''''''''
+
+Behind the scenes this implementation uses temporary storage where git
+repository is created for storing, and cloned for retrieving (then file is
+copied in/out and this temporary storage rm -rf'd) Perhaps, in the future
+git-receive-pack and git-upload-pack messages could be created on the fly
+to speed things up (of possible...).
+
+As a side note, git-upload-archive (and subdirs) could also be used if
+   1) it were supported by all git remotes
+   2) one wrote communication program that faked blob existence...
+   *) it still might not work, I don't know enough git wire protocols
