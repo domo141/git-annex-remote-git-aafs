@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Created: Fri 28 Dec 2018 20:45:48 +0200 too
-# Last modified: Mon 31 Dec 2018 16:35:10 +0200 too
+# Last modified: Mon 18 Feb 2019 19:15:22 +0200 too
 
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -60,7 +60,7 @@ vecho () {
 ru=
 test_it ()
 {
-	c=$((c + 1)); echo test_it $c: "$1 $2 -- $ru"
+	c=$((c + 1)); echo test_it $c: "$ru -- $1 $2"
 {
 	trap "kill -USR1 $$" 0
 	vread VERSION 1
@@ -76,7 +76,7 @@ test_it ()
 
 test_it2 () {
 	test_it "$1"  "$2"
-	test_it "$1"/ "$2"
+	test_it "$1"/ "$2"/
 }
 
 trap 'exit 1' USR1
@@ -88,60 +88,62 @@ git () {
 
 git config remote.origin.url git://a.b@c.de/repo/
 
-test_it -aafs      git://a.b@c.de/repo-aafs/
-test_it -aafs.git  git://a.b@c.de/repo-aafs.git/
+test_it -aafs      git://a.b@c.de/repo-aafs
+test_it -aafs.git  git://a.b@c.de/repo-aafs.git
 
 git config remote.origin.url git://a.b@c.de/repo.git
 
-test_it -aafs      git://a.b@c.de/repo-aafs.git/
-test_it -aafs.git  git://a.b@c.de/repo-aafs.git/
+test_it -aafs      git://a.b@c.de/repo-aafs.git
+test_it -aafs.git  git://a.b@c.de/repo-aafs.git
 
-test_it2 .          git://a.b@c.de/repo.git/
-test_it2 ..         git://a.b@c.de/
-test_it2 ../..      git://a.b@c.de/
-test_it2 /f         git://a.b@c.de/f/
-test_it2 /          git://a.b@c.de/
-test_it2 /..        git://a.b@c.de/
+test_it /          git://a.b@c.de/
+
+test_it2 .          git://a.b@c.de/repo.git
+test_it2 ..         git://a.b@c.de
+test_it2 ../..      git://a.b@c.de
+test_it2 /f         git://a.b@c.de/f
+test_it2 /..        git://a.b@c.de
 
 git config remote.origin.url a.b@c.de:/path/to/repo.git
 
-test_it -aafs      a.b@c.de:/path/to/repo-aafs.git/
-test_it -aafs.git  a.b@c.de:/path/to/repo-aafs.git/
+test_it -aafs      a.b@c.de:/path/to/repo-aafs.git
+test_it -aafs.git  a.b@c.de:/path/to/repo-aafs.git
 
-test_it2 .             a.b@c.de:/path/to/repo.git/
-test_it2 ..            a.b@c.de:/path/to/
-test_it2 ../..         a.b@c.de:/path/
-test_it2 ../../repo    a.b@c.de:/path/repo/
-test_it2 ../../..      a.b@c.de:/
-test_it2 ../../../..   a.b@c.de:/
+test_it2 .             a.b@c.de:/path/to/repo.git
+test_it2 ..            a.b@c.de:/path/to
+test_it2 ../..         a.b@c.de:/path
+test_it2 ../../repo    a.b@c.de:/path/repo
+test_it2 ../../..      a.b@c.de:
+test_it2 ../../../..   a.b@c.de:
 
 git config remote.origin.url a.b@c.de:path/to/repo/
 
-test_it2 .             a.b@c.de:path/to/repo/
-test_it2 ../../../..   a.b@c.de:../
+test_it2 .             a.b@c.de:path/to/repo
+test_it2 ../../../..   a.b@c.de:..
 
 ru=local
 
-test_it2 :.         ./
-test_it2 :..        ../
-test_it2 :/         /
-test_it2 :/..       /
-test_it2 :aafs      aafs/
-test_it2 :aafs/.    aafs/
-test_it2 :/aafs/..  /
-test_it2 :aafs/..   ./
+test_it  :/         /
+test_it  :/..       /
+test_it  :/aafs/..  /
 
-test_it2 https://aafs.example.org/too.git  https://aafs.example.org/too.git/
-test_it2 https://aafs.example.org/..       https://aafs.example.org/
-test_it2 https://aafs.example.org/../..    https://aafs.example.org/
+test_it2 :.         .
+test_it2 :..        ..
+test_it2 :aafs      aafs
+test_it2 :aafs/.    aafs
+test_it2 :aafs/..   .
 
-test_it2 aafs.example.org:too.git  aafs.example.org:too.git/
-test_it2 aafs.example.org:..       aafs.example.org:../
-test_it2 aafs.example.org:../..    aafs.example.org:../../
+test_it2 https://aafs.example.org/too.git  https://aafs.example.org/too.git
+test_it2 https://aafs.example.org/..       https://aafs.example.org
+test_it2 https://aafs.example.org/../..    https://aafs.example.org
 
-test_it2 aafs.example.org:/too.git  aafs.example.org:/too.git/
-test_it2 aafs.example.org:/..       aafs.example.org:/
-test_it2 aafs.example.org:/../..    aafs.example.org:/
+test_it2 aafs.example.org:too.git  aafs.example.org:too.git
+test_it2 aafs.example.org:..       aafs.example.org:..
+test_it2 aafs.example.org:../..    aafs.example.org:../..
+
+test_it2 aafs.example.org:/too.git  aafs.example.org:/too.git
+test_it2 aafs.example.org:/..       aafs.example.org:
+test_it2 aafs.example.org:/../..    aafs.example.org:
 
 
 echo

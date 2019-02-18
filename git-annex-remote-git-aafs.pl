@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Mon 17 Dec 2018 22:46:31 EET too
-# Last modified: Sun 30 Dec 2018 23:56:32 +0200 too
+# Last modified: Mon 18 Feb 2019 19:18:33 +0200 too
 
 # SPDX-License-Identifier: GPL-3.0-only
 
@@ -200,6 +200,7 @@ while (<STDIN>) {
 	      "`git-annex initremote` parameters";
 	    next
 	}
+	my $r = $_;
 	my $ap;
 	unless (s/^:// or /^[^\/]+:/)
 	{
@@ -207,7 +208,6 @@ while (<STDIN>) {
 	    # ... so we use alternative (perhaps differently buggy) impl.
 	    #$aafs_repository =
 	    #  xxqx qw/git submodule--helper resolve-relative-url/, $_;
-	    my $r = $_;
 	    # get_default_remote
 	    my ($ru, $rv) = xxqx qw/git symbolic-ref -q HEAD/;
 	    $ru =~ s,refs/heads/(.*),$1,; # note: not sanitized (trust user)
@@ -246,7 +246,8 @@ while (<STDIN>) {
 		  ,$1,x );
 	s,(?<=/)[.][.]/,,g if /^\//;
 	$_ = './' unless $_;
-	$aafs_repository = $pfx . $_ ;
+	$aafs_repository = $pfx . $_;
+	$aafs_repository =~ s,.\K/$,, unless $r =~ /\/$/;
 
 	warn "...\n$0: initremote access check with $aafs_repository\n";
 	if (fetch_refs < 0) {
