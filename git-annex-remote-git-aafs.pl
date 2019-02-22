@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Mon 17 Dec 2018 22:46:31 EET too
-# Last modified: Mon 18 Feb 2019 19:18:33 +0200 too
+# Last modified: Fri 22 Feb 2019 23:58:02 +0200 too
 
 # SPDX-License-Identifier: GPL-3.0-only
 
@@ -184,11 +184,14 @@ while (<STDIN>) {
 	print 'GETCONFIG repo';
 	$_ = <STDIN>;
 	$aafs_repository = substr $_, 6, -1;
-	unless ($aafs_repository =~ /[:\/]/) {
-	    reply_failure "configuration broken: 'repo' value",$aafs_repository;
-	} else {
-	    reply_success;
+	unless ($aafs_repository) {
+	    reply_failure "configuration broken: 'repo' not given (or empty)";
+	    next
 	}
+	print 'GETCONFIG sshcommand';
+	$_ = <STDIN>; $_ = substr $_, 6, -1;
+	$ENV{GIT_SSH_COMMAND} = $_ if $_;
+	reply_success;
 	next
     }
     if ($cmd eq 'INITREMOTE') {
