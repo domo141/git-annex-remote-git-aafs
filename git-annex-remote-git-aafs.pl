@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Mon 17 Dec 2018 22:46:31 EET too
-# Last modified: Fri 22 Feb 2019 23:58:02 +0200 too
+# Last modified: Sat 23 Feb 2019 18:37:49 +0200 too
 
 # SPDX-License-Identifier: GPL-3.0-only
 
@@ -34,9 +34,6 @@ print 'VERSION', 1;
 delete $ENV{GIT_DIR};
 delete $ENV{GIT_WORK_TREE};
 $ENV{GIT_PAGER} = 'cat';
-
-$ENV{GIT_AUTHOR_NAME} = $ENV{GIT_COMMITTER_NAME} = 'git-annex addressable file';
-$ENV{GIT_AUTHOR_EMAIL} = $ENV{GIT_COMMITTER_EMAIL} = 'git-aafs@not.an.example';
 
 #END { warn "$$: --- EXIT $? ---\n" }
 
@@ -97,6 +94,24 @@ sub fetch_refs()
     return scalar %REFS;
 }
 
+sub name_email() {
+    unless (defined $ENV{GIT_AUTHOR_NAME}) {
+	my ($an, $rv) = xxqx qw/git config --get user.name/;
+	$an = 'git-annex addressable file' if $rv;
+	$ENV{GIT_AUTHOR_NAME} = $an;
+    }
+    unless (defined $ENV{GIT_AUTHOR_EMAIL}) {
+	my ($ae, $rv) = xxqx qw/git config --get user.email/;
+	$ae = 'git-aafs@not.an.example' if $rv;
+	$ENV{GIT_AUTHOR_EMAIL} = $ae;
+    }
+    $ENV{GIT_COMMITTER_NAME} = $ENV{GIT_AUTHOR_NAME}
+      unless defined $ENV{GIT_COMMITTER_NAME};
+    $ENV{GIT_COMMITTER_EMAIL} = $ENV{GIT_AUTHOR_EMAIL}
+      unless defined $ENV{GIT_COMMITTER_EMAIL};
+    eval 'sub name_email() { }'
+}
+
 my $cmd;
 sub reply_success(@) { print "$cmd-SUCCESS @_" }
 sub reply_failure(@) { print "$cmd-FAILURE @_" }
@@ -129,6 +144,7 @@ while (<STDIN>) {
 		reply_success 'STORE', $key;
 		next
 	    }
+	    name_email;
 	    my $file = "@l"; # losing trailing sp (if any) strip'd (do we care?)
 	    my $dh = File::Temp->newdir('aafs-wipd.XXXXXX');
 	    my @git = ( 'git', '--git-dir', $dh->dirname );
@@ -188,9 +204,11 @@ while (<STDIN>) {
 	    reply_failure "configuration broken: 'repo' not given (or empty)";
 	    next
 	}
-	print 'GETCONFIG sshcommand';
-	$_ = <STDIN>; $_ = substr $_, 6, -1;
-	$ENV{GIT_SSH_COMMAND} = $_ if $_;
+	unless (defined $ENV{GIT_SSH_COMMAND}) {
+	    print 'GETCONFIG sshcommand';
+	    $_ = <STDIN>; $_ = substr $_, 6, -1;
+	    $ENV{GIT_SSH_COMMAND} = $_ if $_;
+	}
 	reply_success;
 	next
     }
@@ -258,6 +276,13 @@ while (<STDIN>) {
 	    next
 	}
 	print 'SETCONFIG repo', $aafs_repository;
+	print 'GETCONFIG sshcommand';
+	$_ = <STDIN>;
+	$_ = substr $_, 6, -1;
+	if ($_ eq '.') {
+	    ($_, undef) = xxqx qw/git config --get core.sshCommand/;
+	    print 'SETCONFIG sshcommand', $_; # empty is ok
+	}
 	reply_success;
 	next
     }

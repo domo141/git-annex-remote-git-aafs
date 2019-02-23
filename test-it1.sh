@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Created: Wed 19 Dec 2018 22:48:39 EET too
-# Last modified: Fri 22 Feb 2019 23:57:06 +0200 too
+# Last modified: Sat 23 Feb 2019 18:03:06 +0200 too
 
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -76,7 +76,7 @@ git-annex init 'jepjep'
 :
 git-annex $debug initremote git-aafs \
 	type=external externaltype=git-aafs encryption=none \
-	repo=$repo sshcommand=unused
+	repo=$repo sshcommand=.
 :
 test $repo = :./. || exit 0
 
