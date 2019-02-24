@@ -1,0 +1,283 @@
+#!/usr/bin/perl
+# -*- mode: cperl; cperl-indent-level: 4 -*-
+# $ git-aafs $
+#
+# Author: Tomi Ollila -- too ät iki piste fi
+#
+#	Copyright (c) 2019 Tomi Ollila
+#	    All rights reserved
+#
+# Created: Sun 17 Feb 2019 17:48:06 EET too
+# Last modified: Sun 24 Feb 2019 18:41:13 +0200 too
+
+# SPDX-License-Identifier: BSD-2-Clause
+
+# This standalone tool can be used to get git-annexed files from git-aafs
+# compatible repository without even having git-annex installed, and to
+# store git-annexed files to git-aafs compatible repository without using
+# git-aafs git annex special remote (git-annex-remote-git-aafs.pl).
+
+use 5.8.1;
+use strict;
+use warnings;
+
+use Cwd 'realpath';
+use File::Temp;
+use File::Path qw/make_path remove_tree/;
+
+$, = ' ';  # output field separator
+$\ = "\n"; # output record separator
+
+BEGIN {
+    # just for fun -- use -MO=Deparse to check effect
+    if (@ARGV and $ARGV[0] eq '-v') {
+	eval '*v = sub () { 1 }';
+	shift
+    }
+    else {
+	eval '*v = sub () { 0 }';
+    }
+}
+
+sub d () { 0 }
+
+unless (@ARGV >= 2) {
+    my $bn = $0; $bn =~ s,.*/,,;
+    die "\nUsage: $bn [-v] command repo [files]
+
+$bn commands available:
+
+  get    get files from storage (referenced by (dangling) (symlinked) filename)
+  put    put files to storage (referenced by (symlinked) filename)
+  list   list files (names as git-annex generated keys) in storage\n\n";
+}
+
+sub xxsystem(@) # system w/ stdout redirected to stderr and exit if/unless...
+{
+    warn "$$: xxsystem @_\n" if d;
+    my $pid = fork;
+    die "fork failed!\n" unless defined $pid;
+    if ($pid) {
+	#alarm 600;
+	sleep 1 while (waitpid ($pid, 0) != $pid); # slow loop if ever...
+	#alarm 0;
+	return $? if defined wantarray;
+	die "@_ failed returncode $?\n" if $?;
+	return;
+    }
+    # child
+    open(STDOUT, ">&STDERR") or die "Can't dup STDERR to STDOUT: $!\n";
+    #system 'printenv';
+    exec @_;
+    die "exec @_ failed: $!\n";
+}
+
+sub xxqx(@) # like qx//, but with list as a command + args, and chomp (and die)
+{
+    warn "$$: xxqx @_\n" if d;
+    open P, '-|', @_ or die "pipe open: $!\n"; # unlikely
+    #alarm 600;
+    my $r; {
+	local $/; # local slurp mode
+	$r = <P>;
+    }
+    #alarm 0;
+    chomp $r; # for the usual case we get one line
+    close P;
+    warn "$$: xxqx ($?) $r\n" if d;
+    if ($?) {
+	return ($r, $?) if wantarray;
+	die "@_ failed returncode $?\n";
+    }
+    return $r;
+}
+
+my $ev = 0;
+sub emsg($) { $ev = 1; print STDERR "@_"; }
+
+my $aafs_repository;
+my %REFS;
+sub fetch_refs()
+{
+    open P, '-|', qw/git ls-remote --refs -h/, $aafs_repository or die $!;
+    %REFS = ();
+    while (<P>) {
+	my ($cid, $ref, @rest) = split;
+	$ref =~ s/refs.heads.//;
+	$REFS{$ref} = $cid;
+    }
+    close P or return -1;
+    return scalar %REFS;
+}
+
+my $gitconfig = xxqx qw/git config -l/;
+
+my $cmd = shift;
+
+my $r = $_ = shift;
+my $ap;
+unless (s/^:// or /^[^\/]+:/)
+{
+    # git-submodule--helper resolve-relative-url (available 2016-04)
+    # ... so we use alternative (perhaps differently buggy) impl.
+    #$aafs_repository =
+    #  xxqx qw/git submodule--helper resolve-relative-url/, $_;
+    # get_default_remote
+    my ($ru, undef) = xxqx qw/git symbolic-ref -q HEAD/;
+    $ru =~ s,refs/heads/,,; # note: not sanitized (trust user)
+    if ($gitconfig =~ /^branch[.]$ru[.]remote=(.*)/m) {
+	$ru = $1;
+    } else {
+	$ru = 'origin';
+    }
+    # default remote url
+    unless ($gitconfig =~ /^remote[.]$ru[.]url=(.*)/m) {
+	die "cannot find url of remote '$ru'\n";
+    }
+    $_ = $1;
+    if ($r =~ /^\//) { # leading / -- absolute in remote...
+	$ap = $r;
+    }
+    elsif ($r !~ /[:\/]/ and $r ne '.' and $r ne '..')
+    {      # no /'s (nor :'s) (nor .|..) -- suffix 'repo' to url
+	s/\/+$//;
+	my $x = (s/[.]git$// and $r !~ /[.]git$/)? '.git': '';
+	$_ = $_ . $r . $x;
+    } else {
+	$_ = $_ . '/' . $r;
+    }
+    # useful when git-aafs repo in same urlhost as if this git+ssh repo
+    unless (defined $ENV{GIT_SSH_COMMAND} or defined $ENV{GIT_SSH}) {
+	$ENV{GIT_SSH_COMMAND} = $1
+	  if $gitconfig =~ /^core[.]sshcommand=(.*)/mi;
+    }
+}
+# since no resolve-relative-url used we canonicalize everything here...
+my $pfx = s,^([^/]+:(?://+[^/]+|)),,? $1: '';
+$_ = $ap if defined $ap;
+require File::Spec;
+$_ = File::Spec->canonpath($_) . '/'; $_ = '/' if $_ eq '//';
+1 while (s, (^|/)
+	    (?:[^/] | [^./][^/] | [^/][^./] | [^/][^/][^/]+) /[.][.]/
+	  ,$1,x );
+s,(?<=/)[.][.]/,,g if /^\//;
+$_ = './' unless $_;
+$aafs_repository = $pfx . $_ ;
+$aafs_repository =~ s,.\K/$,, unless $r =~ /\/$/;
+
+print "repo: $aafs_repository" if v;
+
+my $rmtree;
+END { remove_tree $rmtree if defined $rmtree }
+
+if ($cmd eq 'get') {
+    die "no files to get\n" unless @ARGV;
+    foreach (@ARGV) {
+	my $keypath = realpath $_;
+	$keypath = readlink $_ unless defined $keypath;
+	next if -f $keypath;
+	emsg "'$keypath' (resolved from '$_') exists but is not a file", next
+	  if -e $keypath;
+	my (undef, $dir, $key) = File::Spec->splitpath($keypath);
+
+	emsg "'$key' (resolved from '$_'): suspicious file name", next
+	  unless $key =~ /[0-9a-fA-F]{32}/; # md5sum hex length as minimum
+	print "get: $keypath" if v;
+
+	# XXX long distance between creation of dir and chmodding it...
+	unless (-d $dir) {
+	    make_path $dir, { error => \my $err };
+	    if ($err && @$err) {
+		# shortcut to $err->[0]->...something (we do create only one)
+		emsg "could not create '$dir': $!";
+		next;
+	    }
+	    $rmtree = $dir;
+	}
+	my $dh = File::Temp->newdir($dir . 'aafs-wipd.XXXXXX');
+	my $tempdir = $dh->dirname;
+	if (xxsystem qw/git clone -q --depth=1 --single-branch --branch/, $key,
+	    $aafs_repository, "$tempdir/git") {
+	    emsg "failed to fetch $key (no content?)";
+	    next
+	}
+	my $blob = "$tempdir/git/$key";
+	unless (-f $blob) {
+	    emsg "no '$key in the fetched content";
+	    next
+	}
+	chmod 0444, $blob;
+	unless (rename $blob, $dir . $key) {
+	    emsg "could not move '$blob' to '$dir$key': $!";
+	}
+    } continue {
+	if (defined $rmtree) {
+	    chmod 0555, $rmtree;
+	    undef $rmtree;
+	}
+    }
+    exit $ev
+}
+
+if ($cmd eq 'put') {
+    die "no files to put\n" unless @ARGV;
+    unless (defined $ENV{GIT_AUTHOR_NAME}) {
+	$gitconfig =~ /^user[.]name=(.*)/m or
+	  die "Cannot get user.name from git config (nor from env)\n";
+	$ENV{GIT_AUTHOR_NAME} = $1;
+    }
+    unless (defined $ENV{GIT_AUTHOR_EMAIL}) {
+	$gitconfig =~ /^user[.]email=(.*)/m or
+	  die "Cannot get user.email from git config (nor from env)\n";
+	$ENV{GIT_AUTHOR_EMAIL} = $1;
+    }
+    $ENV{GIT_COMMITTER_NAME} = $ENV{GIT_AUTHOR_NAME}
+      unless defined $ENV{GIT_COMMITTER_NAME};
+    $ENV{GIT_COMMITTER_EMAIL} = $ENV{GIT_AUTHOR_EMAIL}
+      unless defined $ENV{GIT_COMMITTER_EMAIL};
+
+    fetch_refs;
+    foreach (@ARGV) {
+	my $keypath = realpath($_);
+	my $key = (File::Spec->splitpath($keypath))[2];
+	emsg "'$key' (resolved from '$_'): suspicious file name", next
+	  unless $key =~ /[0-9a-fA-F]{32}/; # md5sum hex length as minimum
+	print "put: $keypath" if v;
+	next if defined $REFS{$key};
+	$REFS{$key} = 1;
+	emsg "'$keypath' (resolved from '$_'): not a file", next
+	  unless -f $keypath;
+
+	my $dh = File::Temp->newdir('/var/tmp/aafs-wipd.XXXXXX');
+	my @git = ( 'git', '--git-dir', $dh->dirname );
+	xxsystem @git, qw/init --bare/;
+	my $bh = xxqx @git, qw/hash-object -w/, $keypath;
+	xxsystem @git, qw/update-index --add --cacheinfo 100644/, $bh, $key;
+	my $tree = xxqx @git, 'write-tree';
+	my $commit = xxqx @git, qw/commit-tree -m ./, $tree;
+	if (xxsystem @git, 'push',
+	    $aafs_repository, "$commit:refs/heads/$key") {
+	    emsg "pushing $key to $aafs_repository failed";
+	    next
+	}
+	$REFS{$key} = $commit;
+    }
+    exit $ev
+}
+
+if ($cmd eq 'list') {
+    warn "* note: excess args ignored *\n" if @ARGV;
+    my @cmdline = qw/git ls-remote --refs -h/;
+    push @cmdline, $aafs_repository;
+    print ":; @cmdline" if v;
+    open P, '-|', @cmdline or die $!;
+    while (<P>) {
+	my ($cid, $ref, @rest) = split;
+	$ref =~ s/refs.heads.//;
+	print '', $ref;
+    }
+    close P or exit 1;
+    exit
+}
+
+die "$0: '$cmd': no such command\n";
