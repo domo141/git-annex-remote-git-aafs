@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Created: Fri 28 Dec 2018 20:45:48 +0200 too
-# Last modified: Mon 18 Feb 2019 19:15:22 +0200 too
+# Last modified: Sun 24 Feb 2019 18:32:18 +0200 too
 
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -67,8 +67,10 @@ test_it ()
 	vecho INITREMOTE
 	vread GETCONFIG repo
 	vecho VALUE "$1"
-	test "$2" = - ||
+	#test "$2" = - ||
 	vread SETCONFIG repo "$2"
+	vread GETCONFIG sshcommand
+	vecho VALUE
 	vread INITREMOTE-SUCCESS
 	trap - 0
 } < co.fifo | perl ./test-initremote-repos.pl > co.fifo

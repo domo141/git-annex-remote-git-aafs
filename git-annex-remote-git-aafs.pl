@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Mon 17 Dec 2018 22:46:31 EET too
-# Last modified: Sat 23 Feb 2019 18:37:49 +0200 too
+# Last modified: Sun 24 Feb 2019 18:30:28 +0200 too
 
 # SPDX-License-Identifier: GPL-3.0-only
 
@@ -231,7 +231,7 @@ while (<STDIN>) {
 	    #  xxqx qw/git submodule--helper resolve-relative-url/, $_;
 	    # get_default_remote
 	    my ($ru, $rv) = xxqx qw/git symbolic-ref -q HEAD/;
-	    $ru =~ s,refs/heads/(.*),$1,; # note: not sanitized (trust user)
+	    $ru =~ s,refs/heads/,,; # note: not sanitized (trust user)
 	    ($ru, $rv) = xxqx qw/git config --get/, "branch.$ru.remote";
 	    if ($ru =~ /^\s*$/) {
 		$ru = 'origin';

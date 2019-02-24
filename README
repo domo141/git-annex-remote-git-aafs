@@ -95,6 +95,11 @@ commands:
       how url can be resolved are to be documented -- in the meanwhile
       look at the end of file test-it2.sh to get the idea.
 
+    - optionally, git-annex-remote-git-aafs can be given extra parameter
+      'sshcommand=shell-cmdline'. when given, will be used as a value in
+      GIT_SSH_COMMAND environment variable (if not set already). with
+      special value '.' current git config variable core.sshCommand is
+      copied to the configuration of this special remote.
 
   Before `git-annex initremote` you could have run `git-annex add ...` and
   `git commit ...` commands (documented walkthrough link above). If not,
