@@ -8,7 +8,7 @@
 #	    All rights reserved
 #
 # Created: Sun 17 Feb 2019 17:48:06 EET too
-# Last modified: Sun 24 Feb 2019 18:41:13 +0200 too
+# Last modified: Sun 24 Feb 2019 23:51:20 +0200 too
 
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -139,10 +139,8 @@ unless (s/^:// or /^[^\/]+:/)
 	$ap = $r;
     }
     elsif ($r !~ /[:\/]/ and $r ne '.' and $r ne '..')
-    {      # no /'s (nor :'s) (nor .|..) -- suffix 'repo' to url
-	s/\/+$//;
-	my $x = (s/[.]git$// and $r !~ /[.]git$/)? '.git': '';
-	$_ = $_ . $r . $x;
+    {   # no /'s (nor :'s) (nor .|..) -- ../$r for user convenience
+	$_ = $_ . '/../' . $r;
     } else {
 	$_ = $_ . '/' . $r;
     }

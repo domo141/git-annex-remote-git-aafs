@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Created: Fri 28 Dec 2018 20:45:48 +0200 too
-# Last modified: Sun 24 Feb 2019 18:32:18 +0200 too
+# Last modified: Mon 25 Feb 2019 00:18:07 +0200 too
 
 # SPDX-License-Identifier: BSD-2-Clause
 
@@ -90,13 +90,13 @@ git () {
 
 git config remote.origin.url git://a.b@c.de/repo/
 
-test_it -aafs      git://a.b@c.de/repo-aafs
-test_it -aafs.git  git://a.b@c.de/repo-aafs.git
+test_it git-aafs      git://a.b@c.de/git-aafs
+test_it git-aafs.git  git://a.b@c.de/git-aafs.git
 
 git config remote.origin.url git://a.b@c.de/repo.git
 
-test_it -aafs      git://a.b@c.de/repo-aafs.git
-test_it -aafs.git  git://a.b@c.de/repo-aafs.git
+test_it git-aafs      git://a.b@c.de/git-aafs
+test_it git-aafs.git  git://a.b@c.de/git-aafs.git
 
 test_it /          git://a.b@c.de/
 
@@ -108,8 +108,8 @@ test_it2 /..        git://a.b@c.de
 
 git config remote.origin.url a.b@c.de:/path/to/repo.git
 
-test_it -aafs      a.b@c.de:/path/to/repo-aafs.git
-test_it -aafs.git  a.b@c.de:/path/to/repo-aafs.git
+test_it git-aafs      a.b@c.de:/path/to/git-aafs
+test_it git-aafs.git  a.b@c.de:/path/to/git-aafs.git
 
 test_it2 .             a.b@c.de:/path/to/repo.git
 test_it2 ..            a.b@c.de:/path/to
